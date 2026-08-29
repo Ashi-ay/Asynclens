@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "AsyncLens Prototype",
+  "version": "1.0",
+  "description": "Lightweight developer tool to visualize network activity in a 2D graph.",
+  "permissions": [
+    "network"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "devtools_page": "devtools.html"
+}

@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AsyncLens Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #121212;
+            --bg-panel: #1e1e1e;
+            --bg-header: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #888888;
+            --accent: #4fc3f7;
+            --border: #333333;
+            --node-doc: #ffb74d;
+            --node-xhr: #64b5f6;
+            --node-script: #ffd54f;
+            --node-style: #81c784;
+            --node-img: #ba68c8;
+            --node-other: #90a4ae;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--bg-header);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            height: 40px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background-color: #f44336;
+        }
+        .indicator.connected { background-color: #4caf50; }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+        }
+
+        .toolbar input, .toolbar select, .toolbar button {
+            background-color: #333;
+            color: white;
+            border: 1px solid #444;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 60px);
+        }
+
+        .pane-left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+            position: relative;
+        }
+
+        #graph-container {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            background-color: #181818;
+            overflow: hidden;
+        }
+
+        .pane-right {
+            width: 400px;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-panel);
+        }
+
+        .request-list-container {
+            flex: 1;
+            overflow-y: auto;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .request-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+        }
+
+        .request-item:hover, .request-item.selected {
+            background-color: #2c313a;
+        }
+
+        .req-top {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .req-method {
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .req-status {
+            font-family: monospace;
+        }
+        .status-200 { color: #81c784; }
+        .status-400, .status-500 { color: #e57373; }
+
+        .req-url {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-muted);
+            direction: rtl;
+            text-align: left;
+        }
+
+        .details-container {
+            height: 40%;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: #1e1e1e;
+            font-size: 13px;
+        }
+
+        .details-container h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: var(--accent);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 5px;
+        }
+
+        .detail-row {
+            display: flex;
+            margin-bottom: 6px;
+        }
+
+        .detail-label {
+            width: 80px;
+            font-weight: bold;
+            color: var(--text-muted);
+        }
+        
+        .detail-value {
+            flex: 1;
+            word-break: break-all;
+        }
+
+        .header-list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            font-family: monospace;
+            background: #121212;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        
+        .header-list li {
+            margin-bottom: 4px;
+        }
+        
+        .header-name {
+            color: var(--accent);
+        }
+
+        /* D3 Graph Styles */
+        .node circle { stroke: #333; stroke-width: 1.5px; }
+        .node text { fill: #fff; font-size: 10px; font-family: sans-serif; pointer-events: none; }
+        .link { stroke: #555; stroke-opacity: 0.6; stroke-width: 1px; }
+
+        .empty-state {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="status">
+            <div id="conn-indicator" class="indicator"></div>
+            <span>AsyncLens 🔎 <span id="conn-text">Disconnected</span></span>
+        </div>
+        <div class="toolbar">
+            <input type="text" id="search-box" placeholder="Search URL...">
+            <select id="filter-type">
+                <option value="All">All Types</option>
+                <option value="fetch">Fetch / XHR</option>
+                <option value="document">Document</option>
+                <option value="script">Script</option>
+                <option value="stylesheet">Stylesheet</option>
+                <option value="image">Image</option>
+                <option value="Other">Other</option>
+            </select>
+            <button id="clear-btn">Clear</button>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="pane-left">
+            <div id="graph-container"></div>
+        </div>
+        
+        <div class="pane-right">
+            <div class="request-list-container" id="request-list">
+                <!-- Request items appended here -->
+            </div>
+            
+            <div class="details-container" id="request-details">
+                <div class="empty-state">Select a request to view details</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State ---
+        let requests = [];
+        let selectedRequestId = null;
+        let ws = null;
+        
+        // Filter state
+        let searchTerm = "";
+        let filterType = "All";
+
+        // --- DOM Elements ---
+        const connIndicator = document.getElementById('conn-indicator');
+        const connText = document.getElementById('conn-text');
+        const reqListEl = document.getElementById('request-list');
+        const reqDetailsEl = document.getElementById('request-details');
+        const searchBox = document.getElementById('search-box');
+        const filterDropdown = document.getElementById('filter-type');
+        const clearBtn = document.getElementById('clear-btn');
+
+        // --- D3 Graph Setup ---
+        const container = document.getElementById('graph-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        const svg = d3.select("#graph-container")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", "100%")
+            .call(d3.zoom().on("zoom", (e) => g.attr("transform", e.transform)))
+            .append("g");
+
+        const g = svg.append("g");
+        const linkGroup = g.append("g").attr("class", "links");
+        const nodeGroup = g.append("g").attr("class", "nodes");
+
+        let graphNodes = [{ id: "PAGE", label: "Inspected Page", type: "document", isRoot: true }];
+        let graphLinks = [];
+
+        const simulation = d3.forceSimulation(graphNodes)
+            .force("link", d3.forceLink(graphLinks).id(d => d.id).distance(80))
+            .force("charge", d3.forceManyBody().strength(-150))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(25));
+
+        function getNodeColor(type) {
+            type = (type || "").toLowerCase();
+            if (type.includes("document")) return "var(--node-doc)";
+            if (type.includes("xhr") || type.includes("fetch")) return "var(--node-xhr)";
+            if (type.includes("script")) return "var(--node-script)";
+            if (type.includes("stylesheet")) return "var(--node-style)";
+            if (type.includes("image")) return "var(--node-img)";
+            return "var(--node-other)";
+        }
+
+        function getFilename(url) {
+            try {
+                const urlObj = new URL(url);
+                const parts = urlObj.pathname.split('/').filter(Boolean);
+                return parts.length ? parts[parts.length - 1] : urlObj.hostname;
+            } catch(e) {
+                return url.substring(0, 20) + '...';
+            }
+        }
+
+        function updateGraph() {
+            // Re-bind Links
+            const link = linkGroup.selectAll("line").data(graphLinks, d => d.source.id + "-" + d.target.id);
+            const linkEnter = link.enter().append("line").attr("class", "link");
+            link.exit().remove();
+            
+            // Re-bind Nodes
+            const node = nodeGroup.selectAll("g.node").data(graphNodes, d => d.id);
+            
+            const nodeEnter = node.enter().append("g")
+                .attr("class", "node")
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended))
+                .on("click", (e, d) => {
+                    if (!d.isRoot) selectRequest(d.id);
+                });
+
+            nodeEnter.append("circle")
+                .attr("r", d => d.isRoot ? 20 : 12)
+                .attr("fill", d => d.isRoot ? "#ffffff" : getNodeColor(d.type));
+
+            nodeEnter.append("text")
+                .attr("dy", 22)
+                .attr("text-anchor", "middle")
+                .text(d => d.label);
+
+            node.exit().remove();
+
+            // Merge logic for ticks
+            const allNodes = nodeEnter.merge(node);
+            const allLinks = linkEnter.merge(link);
+
+            simulation.nodes(graphNodes).on("tick", () => {
+                allLinks
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                allNodes.attr("transform", d => `translate(${d.x},${d.y})`);
+            });
+
+            simulation.force("link").links(graphLinks);
+            simulation.alpha(0.3).restart();
+        }
+
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x; d.fy = d.y;
+        }
+        function dragged(event, d) {
+            d.fx = event.x; d.fy = event.y;
+        }
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null; d.fy = null;
+        }
+
+        // --- UI Updates ---
+        function formatBytes(bytes) {
+            if (bytes === 0 || !bytes) return '0 B';
+            const k = 1024, sizes = ['B', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function passesFilter(req) {
+            if (filterType !== 'All') {
+                const rt = (req.resourceType || '').toLowerCase();
+                if (filterType === 'fetch' && !(rt.includes('xhr') || rt.includes('fetch'))) return false;
+                if (filterType !== 'fetch' && !rt.includes(filterType.toLowerCase())) return false;
+            }
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                return req.url.toLowerCase().includes(term) || 
+                       req.method.toLowerCase().includes(term);
+            }
+            return true;
+        }
+
+        function updateRequestList() {
+            reqListEl.innerHTML = '';
+            
+            const filtered = requests.filter(passesFilter);
+            
+            filtered.forEach(req => {
+                const div = document.createElement('div');
+                div.className = `request-item ${req.id === selectedRequestId ? 'selected' : ''}`;
+                
+                const statusClass = req.status >= 400 ? (req.status >= 500 ? 'status-500' : 'status-400') : 'status-200';
+                
+                div.innerHTML = `
+                    <div class="req-top">
+                        <span class="req-method">${req.method}</span>
+                        <span class="req-status ${statusClass}">${req.status}</span>
+                        <span>${Math.round(req.duration)}ms</span>
+                    </div>
+                    <div class="req-url" dir="ltr">${req.url}</div>
+                `;
+                div.onclick = () => selectRequest(req.id);
+                reqListEl.appendChild(div);
+            });
+        }
+
+        function selectRequest(id) {
+            selectedRequestId = id;
+            updateRequestList(); // Re-render list to show selection
+
+            const req = requests.find(r => r.id === id);
+            if (!req) return;
+
+            const formatHeaders = (headers) => {
+                if (!headers || headers.length === 0) return '<li>None</li>';
+                return headers.map(h => 
+                    `<li><span class="header-name">${h.name}:</span> ${h.value}</li>`
+                ).join('');
+            };
+
+            reqDetailsEl.innerHTML = `
+                <h3>Request Details</h3>
+                <div class="detail-row"><div class="detail-label">URL</div><div class="detail-value">${req.url}</div></div>
+                <div class="detail-row"><div class="detail-label">Method</div><div class="detail-value">${req.method}</div></div>
+                <div class="detail-row"><div class="detail-label">Status</div><div class="detail-value">${req.status} ${req.statusText}</div></div>
+                <div class="detail-row"><div class="detail-label">Type</div><div class="detail-value">${req.resourceType}</div></div>
+                <div class="detail-row"><div class="detail-label">Duration</div><div class="detail-value">${Math.round(req.duration)} ms</div></div>
+                <div class="detail-row"><div class="detail-label">Size</div><div class="detail-value">${formatBytes(req.size)}</div></div>
+                <div class="detail-row"><div class="detail-label">Initiator</div><div class="detail-value">${req.initiator}</div></div>
+                
+                <h3 style="margin-top: 15px;">Response Headers</h3>
+                <ul class="header-list">
+                    ${formatHeaders(req.responseHeaders)}
+                </ul>
+
+                <h3 style="margin-top: 15px;">Request Headers</h3>
+                <ul class="header-list">
+                    ${formatHeaders(req.requestHeaders)}
+                </ul>
+            `;
+        }
+
+        // --- Event Listeners ---
+        searchBox.addEventListener('input', (e) => {
+            searchTerm = e.target.value;
+            updateRequestList();
+        });
+
+        filterDropdown.addEventListener('change', (e) => {
+            filterType = e.target.value;
+            updateRequestList();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            requests = [];
+            graphNodes = [{ id: "PAGE", label: "Inspected Page", type: "document", isRoot: true }];
+            graphLinks = [];
+            selectedRequestId = null;
+            reqDetailsEl.innerHTML = '<div class="empty-state">Select a request to view details</div>';
+            updateRequestList();
+            updateGraph();
+        });
+
+        // --- Resize handling ---
+        window.addEventListener('resize', () => {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            svg.attr("width", w).attr("height", h);
+            simulation.force("center", d3.forceCenter(w / 2, h / 2));
+            simulation.alpha(0.1).restart();
+        });
+
+        // --- WebSocket Connection ---
+        function connect() {
+            ws = new WebSocket('ws://' + window.location.host);
+
+            ws.onopen = () => {
+                connIndicator.classList.add('connected');
+                connText.textContent = "Connected";
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'network-request') {
+                        // Store
+                        requests.unshift(data);
+                        
+                        // Enforce a max limit to prevent crashing prototype
+                        if (requests.length > 200) requests.pop();
+                        
+                        // Update Data Model for Graph
+                        graphNodes.push({
+                            id: data.id,
+                            label: getFilename(data.url),
+                            type: data.resourceType,
+                            isRoot: false
+                        });
+                        graphLinks.push({
+                            source: "PAGE", // Link everything to root for this simple layout
+                            target: data.id
+                        });
+
+                        updateRequestList();
+                        updateGraph();
+                    }
+                } catch(e) {
+                    console.error("Dashboard parse error:", e);
+                }
+            };
+
+            ws.onclose = () => {
+                connIndicator.classList.remove('connected');
+                connText.textContent = "Disconnected. Retrying...";
+                setTimeout(connect, 2000);
+            };
+        }
+
+        // Init
+        connect();
+        updateGraph();
+    </script>
+</body>
+</html>

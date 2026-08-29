@@ -1,0 +1,12 @@
+{
+  "name": "asynclens-dashboard",
+  "version": "1.0.0",
+  "description": "Local server and dashboard for AsyncLens",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
