@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "AsyncLens Network Topography",
+  "version": "1.0",
+  "description": "Intercepts network requests and sends them to the local AsyncLens 3D dashboard.",
+  "devtools_page": "devtools.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ]
+}

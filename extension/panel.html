@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #1e1e1e;
+            color: #cccccc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        .status-container {
+            padding: 30px;
+            border-radius: 12px;
+            background: #2d2d2d;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        h1 { font-size: 22px; color: #ffffff; margin-top: 0; }
+        .indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            box-shadow: 0 0 10px currentColor;
+        }
+        .connected { color: #4CAF50; background-color: #4CAF50; }
+        .disconnected { color: #f44336; background-color: #f44336; }
+        a { color: #8b5cf6; text-decoration: none; font-weight: 600;}
+        a:hover { text-decoration: underline; color: #a78bfa;}
+    </style>
+</head>
+<body>
+    <div class="status-container">
+        <h1>AsyncLens Extension</h1>
+        <p>
+            <span id="status-indicator" class="indicator disconnected"></span>
+            <span id="status-text">Disconnected</span>
+        </p>
+        <p>Dashboard: <a href="http://localhost:3000" target="_blank">http://localhost:3000</a></p>
+        <p><small style="color: #888;">Network capture active. Leave this DevTools tab open.</small></p>
+    </div>
+    <script src="panel.js"></script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AsyncLens Test Site</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f4f4f9;
+            color: #333;
+        }
+        h1 { border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        button {
+            padding: 12px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            background: #007bff;
+            color: white;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0056b3; }
+        button.error { background: #dc3545; }
+        button.error:hover { background: #a71d2a; }
+        
+        #log {
+            margin-top: 20px;
+            background: #333;
+            color: #4fc3f7;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            height: 150px;
+            overflow-y: auto;
+        }
+        #image-container { margin-top: 20px; }
+        #image-container img { max-width: 100px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <h1>AsyncLens Test Environment</h1>
+    <p>Use these buttons to generate network traffic and observe it in the AsyncLens dashboard.</p>
+
+    <div class="grid">
+        <button id="btn-fetch-users">Fetch Users (JSON)</button>
+        <button id="btn-fetch-posts">Fetch Posts (JSON)</button>
+        <button id="btn-load-image">Load Image</button>
+        <button id="btn-multiple">Make 5 Requests</button>
+        <button id="btn-error" class="error">Trigger Failed Request (404)</button>
+        <button id="btn-auth">Fetch with Secret Header</button>
+    </div>
+
+    <div id="log">Waiting for actions...</div>
+    <div id="image-container"></div>
+
+    <script>
+        const logEl = document.getElementById('log');
+        const imgContainer = document.getElementById('image-container');
+
+        function log(msg) {
+            logEl.innerHTML += `<div>> ${msg}</div>`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        document.getElementById('btn-fetch-users').addEventListener('click', async () => {
+            log("Fetching users...");
+            try {
+                await fetch('https://jsonplaceholder.typicode.com/users');
+                log("Successfully fetched users.");
+            } catch(e) { log("Error: " + e.message); }
+        });
+
+        document.getElementById('btn-fetch-posts').addEventListener('click', async () => {
+            log("Fetching posts...");
+            try {
+                await fetch('https://jsonplaceholder.typicode.com/posts?_limit=3');
+                log("Successfully fetched posts.");
+            } catch(e) { log("Error: " + e.message); }
+        });
+
+        document.getElementById('btn-load-image').addEventListener('click', () => {
+            log("Loading image...");
+            const img = document.createElement('img');
+            img.src = `https://picsum.photos/100/100?random=${Math.random()}`;
+            img.onload = () => log("Image loaded.");
+            imgContainer.innerHTML = '';
+            imgContainer.appendChild(img);
+        });
+
+        document.getElementById('btn-multiple').addEventListener('click', () => {
+            log("Triggering 5 requests rapidly...");
+            for(let i=1; i<=5; i++) {
+                fetch(`https://jsonplaceholder.typicode.com/todos/${i}`)
+                    .then(() => log(`Request ${i} completed.`));
+            }
+        });
+
+        document.getElementById('btn-error').addEventListener('click', async () => {
+            log("Triggering 404 request...");
+            try {
+                await fetch('https://jsonplaceholder.typicode.com/invalid-endpoint');
+                log("Error request finished.");
+            } catch(e) { log("Fetch failed."); }
+        });
+
+        document.getElementById('btn-auth').addEventListener('click', async () => {
+            log("Making request with Authorization header (Should be redacted)...");
+            try {
+                await fetch('https://jsonplaceholder.typicode.com/albums/1', {
+                    headers: {
+                        'Authorization': 'Bearer super-secret-token-12345',
+                        'Cookie': 'session_id=abcdefg123456'
+                    }
+                });
+                log("Request with secrets finished.");
+            } catch(e) {}
+        });
+    </script>
+</body>
+</html>
